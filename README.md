@@ -17,3 +17,7 @@ A simple Streamlit app pour recherche les exo planètes par rapport à leurs res
    ```
    $ streamlit run streamlit_app.py
    ```
+3. Demo
+
+  https://wcs-protojam.streamlit.app/
+  
