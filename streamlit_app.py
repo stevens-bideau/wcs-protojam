@@ -3,149 +3,113 @@ import pandas as pd
 import math
 from pathlib import Path
 
+
 # Set the title and favicon that appear in the Browser's tab bar.
 st.set_page_config(
-    page_title='GDP dashboard',
+    page_title='Exo Nuno-vens',
     page_icon=':earth_americas:', # This is an emoji shortcode. Could be a URL too.
 )
+
+# Intégrer le CSS pour l'image de fond
+background_image_url = "https://www.phipix.com/protojam/bg_minigroot.jpg"  # Remplacez par l'URL de votre image
+page_bg_img = f"""
+<style>
+.stApp {{
+    background-image: url("{background_image_url}");
+    background-size: cover;
+}}
+</style>
+"""
+st.markdown(page_bg_img, unsafe_allow_html=True)
+
 
 # -----------------------------------------------------------------------------
 # Declare some useful functions.
 
-@st.cache_data
-def get_gdp_data():
-    """Grab GDP data from a CSV file.
 
-    This uses caching to avoid having to read the file every time. If we were
-    reading from an HTTP endpoint instead of a file, it's a good idea to set
-    a maximum age to the cache with the TTL argument: @st.cache_data(ttl='1d')
-    """
 
-    # Instead of a CSV on disk, you could read from an HTTP endpoint here too.
-    DATA_FILENAME = Path(__file__).parent/'data/gdp_data.csv'
-    raw_gdp_df = pd.read_csv(DATA_FILENAME)
-
-    MIN_YEAR = 1960
-    MAX_YEAR = 2022
-
-    # The data above has columns like:
-    # - Country Name
-    # - Country Code
-    # - [Stuff I don't care about]
-    # - GDP for 1960
-    # - GDP for 1961
-    # - GDP for 1962
-    # - ...
-    # - GDP for 2022
-    #
-    # ...but I want this instead:
-    # - Country Name
-    # - Country Code
-    # - Year
-    # - GDP
-    #
-    # So let's pivot all those year-columns into two: Year and GDP
-    gdp_df = raw_gdp_df.melt(
-        ['Country Code'],
-        [str(x) for x in range(MIN_YEAR, MAX_YEAR + 1)],
-        'Year',
-        'GDP',
-    )
-
-    # Convert years from string to integers
-    gdp_df['Year'] = pd.to_numeric(gdp_df['Year'])
-
-    return gdp_df
-
-gdp_df = get_gdp_data()
 
 # -----------------------------------------------------------------------------
 # Draw the actual page
 
 # Set the title that appears at the top of the page.
 '''
-# :earth_americas: GDP dashboard
+# :earth_americas: Exo Nunovens tour operator
 
-Browse GDP data from the [World Bank Open Data](https://data.worldbank.org/) website. As you'll
-notice, the data only goes to 2022 right now, and datapoints for certain years are often missing.
-But it's otherwise a great (and did I mention _free_?) source of data.
+A la recherche de la planète de vos prochaines vacances.
 '''
 
-# Add some spacing
-''
-''
+# Charger les données depuis le fichier CSV
+url = "https://www.phipix.com/protojam/all_distance_exo.csv"
+df_final = pd.read_csv(url)
 
-min_value = gdp_df['Year'].min()
-max_value = gdp_df['Year'].max()
+# Dictionnaire pour le mapping des colonnes
+column_mapping = {
+    'Unnamed: 0': 'index',
+    'pl_name': 'Nom de la planète',
+    'pl_orbper': 'Période orbitale (jours)',
+    'pl_orbsmax': "Demi-grand axe de l'orbite (unités astronomiques)",
+    'pl_radj': 'Rayon de la planète (rayons de Jupiter)',
+    'st_teff': "Température effective de l'étoile (Kelvin)",
+    'pl_eqt': "Température d'équilibre de la planète (Kelvin)",
+    'pl_radius_earth': 'Rayon de la planète (rayons terrestres)',
+    'mass_me': 'Masse de la planète (masses terrestres)',
+    'radius_re': 'Rayon de la planète (rayons terrestres)',
+    'flux_se': 'Flux stellaire reçu par la planète (flux solaire terrestre)',
+    'tsurf_k': 'Température à la surface (Kelvin)',
+    'period_days': 'Période Orbitale (jours)',
+    'distance_ly': 'Distance de la Terre (années lumière)',
+    'age_gy': "Âge de l'étoile / du système (milliard d'années)"
+}
 
-from_year, to_year = st.slider(
-    'Which years are you interested in?',
-    min_value=min_value,
-    max_value=max_value,
-    value=[min_value, max_value])
+# Interface Streamlit
+st.title("La planète de vos prochaines vacances")
 
-countries = gdp_df['Country Code'].unique()
+# Menu déroulant pour sélectionner la planète cible
+selected_planet = st.selectbox("Sélectionnez votre planète ici:", df_final['pl_name'].unique())
 
-if not len(countries):
-    st.warning("Select at least one country")
+# Fonction pour obtenir les distances des autres planètes par rapport à la planète cible
+def get_distances(df, selected_planet):
+    distance_col = f'distances_from_{selected_planet}'
+    if distance_col in df.columns:
+        distances_df = df[['pl_name', distance_col,'tsurf_k', 'flux_se']].copy()
+        distances_df = distances_df.rename(columns={'pl_name': 'Planète', distance_col: 'Distance', 'tsurf_k': 'Température (Kelvin)', 'flux_se': 'Ensoleillement (flux solaire)'})
+        distances_df = distances_df.sort_values(by='Distance').reset_index(drop=True)
+        distances_df = distances_df[distances_df['Planète'] != selected_planet]  # Exclure la planète cible
+        return distances_df
+    else:
+        return pd.DataFrame(columns=['Planète', 'Distance','tsurf_k', 'flux_se'])
 
-selected_countries = st.multiselect(
-    'Which countries would you like to view?',
-    countries,
-    ['DEU', 'FRA', 'GBR', 'BRA', 'MEX', 'JPN'])
+# Afficher les distances des autres planètes par rapport à la planète cible
+if selected_planet:
+    distances_df = get_distances(df_final, selected_planet)
+    
+    if not distances_df.empty:
+        st.subheader(f"Distances des autres planètes par rapport à {selected_planet}")
+        st.dataframe(distances_df)
+        
+        # Menu déroulant pour sélectionner une planète parmi les résultats à partir de l'index 1
+        selected_result_planet = st.selectbox("Sélectionnez une planète dans les résultats", distances_df['Planète'])
+        
+        # Afficher les détails de la planète sélectionnée dans les résultats
+        if selected_result_planet:
+            planet_details = df_final[df_final['pl_name'] == selected_result_planet]
+            if not planet_details.empty:
+                st.subheader(f"Détails de la planète {selected_result_planet}")
+                
+                # Renommer uniquement les colonnes existantes dans planet_details sans créer de doublons
+                planet_details_renamed = planet_details.copy()
+                for old_name, new_name in column_mapping.items():
+                    if old_name in planet_details_renamed.columns and new_name not in planet_details_renamed.columns:
+                        planet_details_renamed = planet_details_renamed.rename(columns={old_name: new_name})
+                
+                # Transposer le DataFrame
+                planet_details_transposed = planet_details_renamed.transpose()
+                planet_details_transposed.columns = ["Valeur"]
+                
+                # Afficher le DataFrame transposé avec les noms explicites
+                st.dataframe(planet_details_transposed)
 
-''
-''
-''
+    else:
+        st.write(f"Les données de distances pour **{selected_planet}** ne sont pas disponibles.")
 
-# Filter the data
-filtered_gdp_df = gdp_df[
-    (gdp_df['Country Code'].isin(selected_countries))
-    & (gdp_df['Year'] <= to_year)
-    & (from_year <= gdp_df['Year'])
-]
-
-st.header('GDP over time', divider='gray')
-
-''
-
-st.line_chart(
-    filtered_gdp_df,
-    x='Year',
-    y='GDP',
-    color='Country Code',
-)
-
-''
-''
-
-
-first_year = gdp_df[gdp_df['Year'] == from_year]
-last_year = gdp_df[gdp_df['Year'] == to_year]
-
-st.header(f'GDP in {to_year}', divider='gray')
-
-''
-
-cols = st.columns(4)
-
-for i, country in enumerate(selected_countries):
-    col = cols[i % len(cols)]
-
-    with col:
-        first_gdp = first_year[gdp_df['Country Code'] == country]['GDP'].iat[0] / 1000000000
-        last_gdp = last_year[gdp_df['Country Code'] == country]['GDP'].iat[0] / 1000000000
-
-        if math.isnan(first_gdp):
-            growth = 'n/a'
-            delta_color = 'off'
-        else:
-            growth = f'{last_gdp / first_gdp:,.2f}x'
-            delta_color = 'normal'
-
-        st.metric(
-            label=f'{country} GDP',
-            value=f'{last_gdp:,.0f}B',
-            delta=growth,
-            delta_color=delta_color
-        )
